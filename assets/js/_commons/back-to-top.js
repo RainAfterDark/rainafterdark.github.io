@@ -10,9 +10,9 @@ $(window).scroll(function() {
   }
 });
 
-$(function() {
+$(function() { loadScript("back-to-top", "global", function() {
   $("#back-to-top").click(function() {
     $("body,html").animate({scrollTop: 0}, 800);
     return false;
   });
-});
+}); });

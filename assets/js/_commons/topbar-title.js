@@ -6,7 +6,7 @@
  * MIT License
 */
 
-$(function() {
+$(function() { loadScript("topbar-title", "global", function() {
 
   var DEFAULT = $("#topbar-title").text().trim();
   var title = ($("div.post>h1").length > 0) ?
@@ -44,4 +44,4 @@ $(function() {
     $("body,html").animate({scrollTop: 0}, 800);
   });
 
-});
+}); });

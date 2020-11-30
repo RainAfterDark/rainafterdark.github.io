@@ -6,7 +6,7 @@
  * MIT License
  */
 
-$(function() {
+$(function() { loadScript("topbar-switch", "global", function() {
 
   var didScroll;
   var lastScrollTop = 0;
@@ -66,4 +66,4 @@ $(function() {
     }
   }, 250);
 
-});
+}); });

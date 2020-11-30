@@ -10,6 +10,7 @@
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <meta name="theme" content="{{ site.data.meta.name }} {{ site.data.meta.version }}">
+  <meta name="turbolinks-cache-control" content="no-cache">
 
   {% seo title=false %}
 
@@ -58,12 +59,18 @@
   {% include css-selector.html %}
 
   <!-- JavaScripts -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/turbolinks/5.2.0/turbolinks.js" 
+  integrity="sha512-G3jAqT2eM4MMkLMyQR5YBhvN5/Da3IG6kqgYqU9zlIH4+2a+GuMdLb5Kpxy6ItMdCfgaKlo2XFhI0dHtMJjoRw==" 
+  crossorigin="anonymous"></script>
 
   <script src="https://cdn.jsdelivr.net/npm/jquery@3/dist/jquery.min.js"></script>
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/lozad/dist/lozad.min.js"></script>
 
   <script async
     src="https://cdn.jsdelivr.net/combine/npm/popper.js@1.15.0,npm/bootstrap@4/dist/js/bootstrap.min.js"></script>
-
+  
+  <script src="{{ '/assets/js/script-loader.js' | relative_url }}"></script>
+  
   {% include js-selector.html %}
 
 </head>

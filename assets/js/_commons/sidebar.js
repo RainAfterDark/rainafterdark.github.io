@@ -6,7 +6,7 @@
  * MIT License
  */
 
-$(function() {
+$(function() { loadScript("sidebar", "global", function() {
 
   var sidebarUtil = (function() {
     const ATTR_DISPLAY = "sidebar-display";
@@ -31,4 +31,4 @@ $(function() {
 
   $("#mask").click(sidebarUtil.toggle);
 
-});
+}); });

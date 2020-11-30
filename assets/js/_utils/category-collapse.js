@@ -6,7 +6,7 @@
  * MIT License
  */
 
-$(function() {
+$(function() { loadScript("category-collapse", ["tabs/categories"], function() {
   var childPrefix = "l_";
   var parentPrefix = "h_";
 
@@ -30,4 +30,4 @@ $(function() {
     }
   });
 
-});
+}); });

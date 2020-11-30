@@ -11,6 +11,7 @@
 @import "_addon/variables";
 @import "_colors/light-typography";
 @import "_colors/dark-typography";
+@import "_addon/sidebar-effects";
 
 @mixin set-visible($light-display, $dark-display) {
   [light-mode-invisible] {

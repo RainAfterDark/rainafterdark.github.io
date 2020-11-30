@@ -195,7 +195,7 @@ function fetchPageviews(fetchOrigin = true, filterOrigin = false) {
 }
 
 
-$(function() {
+$(function() { loadScript("pageviews", ["home", "posts"], function() {
 
   if ($(".pageviews").length > 0) {
 
@@ -222,4 +222,4 @@ $(function() {
 
   }
 
-});
+}); });

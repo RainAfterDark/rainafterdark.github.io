@@ -6,7 +6,7 @@
  * MIT Licensed
  */
 
-$(function() {
+$(function() { loadScript("timeago", ["home", "posts"], function() {
 
   var toRefresh = $(".timeago").length;
 
@@ -80,4 +80,4 @@ $(function() {
     intervalId = setInterval(updateTimeago, 60000); /* run every minute */
   }
 
-});
+}); });

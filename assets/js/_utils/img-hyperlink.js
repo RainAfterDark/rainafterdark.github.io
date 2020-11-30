@@ -7,10 +7,10 @@
  * MIT Licensed
  */
 
-$(function() {
+$(function() { loadScript("img-hyperlink", ["posts"], function() {
 
   var MARK="img-hyperlink";
 
   $("a:has(img)").addClass(MARK);
   
-});
+}); });

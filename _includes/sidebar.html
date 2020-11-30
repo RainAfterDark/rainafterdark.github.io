@@ -8,6 +8,11 @@
 
 <div id="nav-wrapper">
 
+  <div id="sidebar-canvas-wrapper" data-turbolinks-permanent>
+    <canvas id="sidebar-canvas"></canvas>
+  </div>
+  <script defer data-turbolinks-eval="false" src="{{ '/assets/js/sidebar-effects.js' | relative_url }}"></script>
+  
   <div id="profile-wrapper" class="d-flex flex-column">
     <div id="avatar" class="d-flex justify-content-center">
       <a href="{{ site.baseurl }}/" alt="avatar">

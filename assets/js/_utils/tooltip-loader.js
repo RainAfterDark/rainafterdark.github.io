@@ -5,6 +5,6 @@
  * © 2019 Cotes Chung
  * MIT License
 */
-$(function () {
+$(function() { loadScript("tooltip-loader", "global", function() {
   $("[data-toggle=\"tooltip\"]").tooltip();
-});
+}); });

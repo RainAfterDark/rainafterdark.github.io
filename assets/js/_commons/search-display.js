@@ -6,7 +6,7 @@
 * MIT License
 */
 
-$(function() {
+$(function() { loadScript("search-display", "global", function() {
 
   var btnSbTrigger = $("#sidebar-trigger");
   var btnSearchTrigger = $("#search-trigger");
@@ -152,4 +152,4 @@ $(function() {
     btnClear.removeClass("visable");
   });
 
-});
+}); });
