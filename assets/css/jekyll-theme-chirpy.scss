@@ -157,9 +157,30 @@ $glitch_filters: (
             $shadow: 10, $translate: 10, $y_min: -5%, $scale_min: 150, $scale_max: 200, $skew: 45);
         }
     }
+
+    @keyframes unflip_frames {
+        from {
+            rotate: 180deg;
+            transform: scaleX(-1);
+        }
+        to {
+            rotate: 0deg;
+            transform: scaleX(1)
+        }
+    }
+    animation: unflip_frames 0.25s forwards;
 }
 
 .flip {
-    rotate: 180deg;
-    transform: scaleX(-1) !important;
+    @keyframes flip_frames {
+        from {
+            rotate: 0deg;
+            transform: scaleX(1);
+        }
+        to {
+            rotate: 180deg;
+            transform: scaleX(-1)
+        }
+    }
+    animation: flip_frames 0.25s forwards !important;
 }

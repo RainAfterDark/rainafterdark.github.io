@@ -7,7 +7,7 @@
   <script defer data-turbolinks-eval="false" src="{{ '/assets/js/sidebar-effects.js' | relative_url }}"></script>
   
   <header class="profile-wrapper">
-    <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle">
+    <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle" data-turbolinks-permanent>
       {%- if site.avatar != empty and site.avatar -%}
         {%- capture avatar_url -%}
           {% include media-url.html src=site.avatar %}
