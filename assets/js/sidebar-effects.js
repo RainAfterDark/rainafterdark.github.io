@@ -1,223 +1,318 @@
 /* Modified version of: https://github.com/geoffb/canvas-rain-demo */
 
 (function () {
-    const FIXED_STEP = 16;
 
-    // Wind
-    const WIND_MIN_VELOCITY = 0.1;
-    const WIND_MAX_VELOCITY = 0.3;
-    const WIND_BUFFER_MULTIPLIER = 3;
-    const WIND_VELOCITY_MULTIPLIER = 1.25;
-    const WIND_VELOCITY_VARIANCE = 0.05;
+// Animation
+const FRAME_RATE               = 60;   // fps
+const MAX_LAG                  = 1;    // seconds
+const TIME_SCALE               = 100;  // %
+const SLOW_MO_MULTIPLIER       = 10;   // %
+const SLOW_MO_DURATION         = 0.5;  // seconds
+const SLOW_MO_EASING           = 0.25; // seconds
 
-    // Drop settings
-    const DROP_COUNT = 80;
-    const DROP_MIN_WIDTH = 1;
-    const DROP_MAX_WIDTH = 3;
-    const DROP_X_BUFFER = 200;
-    const DROP_COLOR_CHANCE = 0.25;
-    const DROP_COLOR_LIGHTNESS = 75;
-    const DROP_MIN_VELOCITY = 0.5;
-    const DROP_MAX_VELOCITY = 0.75;
-    const DROP_MIN_LENGTH = 5;
-    const DROP_MAX_LENGTH = 30;
-    const DROP_LENGTH_MULTIPLIER = 1.5;
-    const DROP_MIN_ALPHA = 0.3;
-    const DROP_MAX_ALPHA = 1;
-    const DROP_MIN_SPAWNRATE = 0.25;
+// Wind
+const WIND_MIN_VELOCITY        = 100;  // px/s
+const WIND_MAX_VELOCITY        = 300;  // px/s
+const WIND_VELOCITY_VARIANCE   =  50;  // px/s
+const WIND_BUFFER_MULTIPLIER   = 300;  // %
+const WIND_VELOCITY_MULTIPLIER = 125;  // %
 
-    const SPLASH_MIN_BREAKPOINT = 100;
-    const SPLASH_MAX_BREAKPOINT = 200;
-    const SPLASH_MIN_RADIUS = 5;
-    const SPLASH_MAX_RADIUS = 10;
-    const SPLASH_MIN_DURATION = 200;
-    const SPLASH_MAX_DURATION = 500;
+// Drop settings
+const DROP_COUNT               = 80;   // int
+const DROP_MIN_WIDTH           = 1;    // px
+const DROP_MAX_WIDTH           = 3;    // px
+const DROP_X_BUFFER            = 200;  // px
+const DROP_COLOR_CHANCE        = 75;   // %
+const DROP_COLOR_LIGHTNESS     = 75;   // %
+const DROP_MIN_VELOCITY        = 500;  // px/s
+const DROP_MAX_VELOCITY        = 750;  // px/s
+const DROP_MIN_LENGTH          = 5;    // px
+const DROP_MAX_LENGTH          = 30;   // px
+const DROP_LENGTH_MULTIPLIER   = 150;  // %
+const DROP_MIN_ALPHA           = 5;    // %
+const DROP_MAX_ALPHA           = 25;   // %
+const DROP_MIN_SPAWNRATE       = 25;   // %
 
-    var mXDistance = 0;
+const SPLASH_MIN_BREAKPOINT    = 80;   // %
+const SPLASH_MAX_BREAKPOINT    = 90;   // %
+const SPLASH_MIN_RADIUS        = 8;    // px
+const SPLASH_MAX_RADIUS        = 16;   // px
+const SPLASH_MIN_DURATION      = 0.8;  // seconds
+const SPLASH_MAX_DURATION      = 1.6;  // seconds
 
-    // Math helpers
-    var math = {
-        // Random integer between min and max
-        randomInteger: function (min, max) {
-            return Math.round((Math.random() * (max - min)) + min);
-        },
-        // Linear Interpolation
-        lerp: function (a, b, n) {
-            return a + ((b - a) * n);
-        },
-        scaleVector: function (v, s) {
-            v.x *= s;
-            v.y *= s;
-        },
-        normalizeVector: function (v) {
-            var m = Math.sqrt(v.x * v.x + v.y * v.y);
-            math.scaleVector(v, 1 / m);
+function randomInteger (min, max) {
+    return Math.round((Math.random() * (max - min)) + min);
+}
+
+function lerp (a, b, n) { // Linear Interpolation
+    return a + ((b - a) * n);
+}
+
+function scaleVector (v, s) {
+    v.x *= s;
+    v.y *= s;
+}
+
+function normalizeVector (v) {
+    let m = Math.sqrt(v.x * v.x + v.y * v.y);
+    scaleVector(v, 1 / m);
+}
+
+function randomColor() {
+    let h = Math.round(lerp(0, 360, Math.random()));
+    let l = Math.random() < DROP_COLOR_CHANCE / 100 ? DROP_COLOR_LIGHTNESS : 100;
+    let hsl = `hsl(${h}, 100%, ${l}%, 1)`;
+    return hsl;
+}
+
+let stage, wrapper, ctx, avatar;
+let avatarHovered = false;
+let mouseX = 0;
+
+let gravity = false;
+let lastScrollTop = 0;
+let lastSlowTime = 0;
+
+function slowDown() {
+    lastSlowTime = Date.now();
+}
+
+function updateAvatar() {
+    let cl = avatar.classList;
+    let flipped = cl.contains("flip");
+    if (!gravity && !flipped)
+        cl.add("flip");
+    else if (gravity && flipped)
+        cl.remove("flip");
+}
+
+function flipGravity(g) {
+    gravity = g;
+    updateAvatar();
+}
+
+function initStage() {
+    stage = document.getElementById("sidebar-canvas");
+    wrapper = document.getElementById("sidebar-canvas-wrapper");
+    stage.width = wrapper.clientWidth;
+    stage.height = wrapper.clientHeight;
+    ctx = stage.getContext("2d");
+    ctx.globalCompositeOperation = "lighter";
+
+    const isHover = e => e.parentElement.querySelector(":hover") === e;
+    document.addEventListener("mousemove", function checkHover(e) {
+        const hovered = isHover(avatar);
+        if (hovered !== checkHover.hovered) {
+            checkHover.hovered = hovered;
+            avatarHovered = hovered;
+            if (hovered && !gravity) {
+                flipGravity(true);
+            }
         }
-    };
+        mouseX = e.clientX / window.innerWidth;
+    });
 
-    var randomColor = function() {
-        var h = Math.round(math.lerp(0, 360, Math.random()));
-        var l = Math.random() < DROP_COLOR_CHANCE ? DROP_COLOR_LIGHTNESS : 100;
-        var hsl = `hsl(${h}, 100%, ${l}%, 1)`;
-        return hsl;
-    }
-
-    // Initialize our canvas
-    var stage, wrapper, ctx;
-
-    var initStage = function() {
-        stage = document.getElementById("sidebar-canvas");
-        wrapper = document.getElementById("sidebar-canvas-wrapper");
+    window.addEventListener("resize", function() {
         stage.width = wrapper.clientWidth;
         stage.height = wrapper.clientHeight;
-        ctx = stage.getContext("2d");
+    });
 
-        document.addEventListener("mousemove", function checkHover(e) {
-            mXDistance = e.clientX / window.innerWidth;
-        });
+    window.addEventListener("scroll", function(){
+        let st = window.scrollY  || document.documentElement.scrollTop;
+        if (st > lastScrollTop) {
+           flipGravity(true);
+        } else if (st < lastScrollTop) {
+            flipGravity(false);
+        }
+        lastScrollTop = st <= 0 ? 0 : st;
+        slowDown();
+     });
 
-        window.addEventListener("resize", function() {
-            stage.width = wrapper.clientWidth;
-            stage.height = wrapper.clientHeight;
-        });
+    document.addEventListener("turbolinks:load", function() {
+        avatar = document.getElementById("avatar");
+        flipGravity(!gravity);
+        slowDown();
+    });
+}
+
+class Drop {
+    splash = new Splash();
+
+    constructor() {
+        this.init();
+        this.y = randomInteger(0, stage.height);
     }
 
-    // Collection of rain drops
-    var drops = [];
+    init() {
+        this.scale = Math.random();
+        this.color = randomColor();
+        this.alpha = lerp(DROP_MIN_ALPHA, DROP_MAX_ALPHA, this.scale) / 100;
 
-    var initDrops = function () {
-        for (var i = 0; i < DROP_COUNT; i++) {
-            var drop = {
-                splash: {
-                    breakpoint: 0,
-                    active: false
-                }
-            };
-            resetDrop(drop);
-            drop.y = math.randomInteger(0, stage.height);
-            drops.push(drop);
-        }
-    };
+        this.width = lerp(DROP_MIN_WIDTH, DROP_MAX_WIDTH, this.scale);
+        this.len = lerp(DROP_MIN_LENGTH, DROP_MAX_LENGTH, this.scale);
+        this.breakpoint = lerp(SPLASH_MIN_BREAKPOINT, SPLASH_MAX_BREAKPOINT, this.scale) / 100;
+        this.spawned = Math.random() <= lerp(DROP_MIN_SPAWNRATE / 100, 1, mouseX);
 
-    // Reset a drop to the top of the canvas
-    var resetDrop = function (drop) {
-        var scale = Math.random();
-        drop.color = randomColor();
-        drop.width = math.lerp(DROP_MIN_WIDTH, DROP_MAX_WIDTH, scale);
+        let buffer = DROP_X_BUFFER * lerp(1, WIND_BUFFER_MULTIPLIER / 100, mouseX);
+        this.x = gravity ? randomInteger(-buffer, stage.width) : randomInteger(0, stage.width + buffer);
+        this.y = gravity ? -this.len : stage.height * this.breakpoint;
 
-        var buffer = DROP_X_BUFFER * math.lerp(1, WIND_BUFFER_MULTIPLIER, mXDistance);
-        drop.x = math.randomInteger(-buffer, stage.width);
-        drop.vx = WIND_MIN_VELOCITY;
-        drop.vxw = math.lerp(0, WIND_VELOCITY_VARIANCE, Math.random()) * (Math.round(Math.random()) > 0 ? 1 : -1);
-        drop.vy = math.lerp(DROP_MIN_VELOCITY, DROP_MAX_VELOCITY, scale);
-        drop.y = math.randomInteger(-drop.len, 0);
-
-        drop.len = math.lerp(DROP_MIN_LENGTH, DROP_MAX_LENGTH, scale);
-        drop.alpha = math.lerp(DROP_MIN_ALPHA, DROP_MAX_ALPHA, scale);
-
-        drop.splash.breakpoint = math.lerp(SPLASH_MIN_BREAKPOINT, SPLASH_MAX_BREAKPOINT, scale);
-        drop.splash.maxRadius = math.lerp(SPLASH_MIN_RADIUS, SPLASH_MAX_RADIUS, scale);
-        drop.splash.maxTime = math.lerp(SPLASH_MIN_DURATION, SPLASH_MAX_DURATION, scale);
-
-        drop.spawned = Math.random() <= math.lerp(DROP_MIN_SPAWNRATE, 1, mXDistance);
-    };
-
-    var startSplash = function (drop) {
-        drop.splash.x = drop.x;
-        drop.splash.y = drop.y;
-        drop.splash.t = 0;
-        drop.splash.alpha = drop.alpha;
-        drop.splash.active = true;
+        this.vx = WIND_MIN_VELOCITY;
+        this.wv = lerp(-WIND_VELOCITY_VARIANCE, WIND_VELOCITY_VARIANCE, Math.random());
+        this.vy = lerp(DROP_MIN_VELOCITY, DROP_MAX_VELOCITY, this.scale);
     }
 
-    var updateDrops = function (dt) {
-        for (var i = drops.length - 1; i >= 0; --i) {
-            var drop = drops[i];
-            var vm = math.lerp(1, WIND_VELOCITY_MULTIPLIER, mXDistance);
-            drop.vx = math.lerp(WIND_MIN_VELOCITY, WIND_MAX_VELOCITY, mXDistance) + drop.vxw;
-            drop.x += drop.vx * dt * vm;
-            drop.y += drop.vy * dt * vm;
+    update(deltaTime) {
+        let vm = lerp(1, WIND_VELOCITY_MULTIPLIER / 100, mouseX);
+        this.vx = lerp(WIND_MIN_VELOCITY, WIND_MAX_VELOCITY, mouseX) + this.wv;
 
-            if(drop.y > stage.height - drop.splash.breakpoint) {
-                if(drop.spawned)
-                    startSplash(drop);
-                resetDrop(drop);
-            }
+        let g = gravity ? 1 : -1;
+        this.x += this.vx * deltaTime * vm * g;
+        this.y += this.vy * deltaTime * vm * g;
 
-            if(drop.splash.active) {
-                drop.splash.t += dt;
-                if(drop.splash.t >= drop.splash.maxTime) {
-                    drop.splash.active = false;
-                }
-            }
+        if(gravity && this.y > stage.height * this.breakpoint) {
+            this.startSplash();
+            this.init();
+        } else if(!gravity && this.y - this.len < 0) {
+            this.init();
+            this.startSplash();
         }
-    };
+        this.splash.update(deltaTime);
+    }
 
-    var renderDrops = function (ctx) {
-        ctx.save();
-        ctx.compositeOperation = "lighter";
+    render() {
+        this.splash.render();
+        if(!this.spawned)
+            return;
 
-        for (var i = 0; i < drops.length; ++i) {
-            var drop = drops[i];
+        let x1 = Math.round(this.x);
+        let y1 = Math.round(this.y);
 
-            if(drop.splash.active && drop.splash.y < stage.height - SPLASH_MIN_BREAKPOINT) {
-                var scale = drop.splash.t / drop.splash.maxTime;
-                var radius = drop.splash.maxRadius * scale;
-                ctx.globalAlpha = drop.splash.alpha - (drop.splash.alpha * scale);
-                ctx.beginPath();
-                ctx.ellipse(drop.splash.x, drop.splash.y, radius * 4, radius, 0, 0, Math.PI *2);
-                ctx.stroke();
-                ctx.closePath();
-            }
+        let v = { x: this.vx, y: this.vy };
+        normalizeVector(v);
+        let len = this.len * lerp(1, DROP_LENGTH_MULTIPLIER / 100, mouseX);
+        len = Math.min((stage.height * this.breakpoint) - this.y, len);
+        scaleVector(v, len);
 
-            if(!drop.spawned)
-                continue;
+        let x2 = Math.round(x1 + v.x);
+        let y2 = Math.round(y1 + v.y);
 
-            var x1 = Math.round(drop.x);
-            var y1 = Math.round(drop.y);
+        ctx.strokeStyle = this.color;
+        ctx.lineWidth = this.width;
+        ctx.globalAlpha = this.alpha;
 
-            var v = { x: drop.vx, y: drop.vy };
-            math.normalizeVector(v);
-            math.scaleVector(v, -drop.len * math.lerp(1, DROP_LENGTH_MULTIPLIER, mXDistance));
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        ctx.closePath();
+    }
 
-            var x2 = Math.round(x1 + v.x);
-            var y2 = Math.round(y1 + v.y);
+    startSplash() {
+        if(this.spawned)
+            this.splash.start(this.x, this.y, this.color, this.scale);
+    }
+}
 
-            ctx.strokeStyle = drop.color;
-            ctx.lineWidth = drop.width;
-            ctx.globalAlpha = drop.alpha;
+class Splash {
+    active = false;
+    
+    start(x, y, color, scale) {
+        this.x = x;
+        this.y = y;
+        this.color = color;
 
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            ctx.closePath();
-        }
-        ctx.restore();
-    };
+        this.alpha = lerp(DROP_MIN_ALPHA, DROP_MAX_ALPHA, scale) / 100;
+        this.width = lerp(DROP_MIN_WIDTH, DROP_MAX_WIDTH, scale);
 
-    var render = function () {
-        ctx.clearRect(0, 0, stage.width, stage.height);
-        renderDrops(ctx);
-    };
+        let m = 1 + mouseX;
+        this.maxRadius = lerp(SPLASH_MIN_RADIUS, SPLASH_MAX_RADIUS, scale) * m;
+        this.maxTime = lerp(SPLASH_MIN_DURATION, SPLASH_MAX_DURATION, 1 - scale) / m;
 
-    var lastTime = 0;
+        this.t = 0;
+        this.active = true;
+    }
 
-    var update = function (time) {
-        var dt = time - lastTime;
-        lastTime = time;
-        if (dt > 100) { dt = FIXED_STEP; }
-        
-        while (dt >= FIXED_STEP) {
-            updateDrops(FIXED_STEP);
-            dt -= FIXED_STEP;
-        }
-        
-        render();
-        requestAnimationFrame(update);
-    };
+    update(deltaTime) {
+        if(!this.active)
+            return;
+        this.t += deltaTime;
+        if(this.t >= this.maxTime)
+            this.active = false;
+    }
 
-    initStage();
-    initDrops();
+    render() {
+        if(!this.active ||
+            this.y > stage.height * SPLASH_MAX_BREAKPOINT / 100)
+            return;
+
+        let scale = this.t / this.maxTime;
+        let radius = this.maxRadius * scale;
+
+        ctx.strokeStyle = this.color;
+        ctx.globalAlpha = this.alpha;
+        ctx.lineWidth = this.width - (this.width * scale);
+
+        ctx.beginPath();
+        ctx.ellipse(this.x, this.y, radius * 4, radius, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.closePath();
+    }
+}
+
+let drops = [];
+
+function initDrops() {
+    for(let i = 0; i < DROP_COUNT; i++) {
+        drops.push(new Drop());
+    }
+};
+
+function updateDrops(deltaTime) {
+    for(let i = 0; i < drops.length; i++) {
+        drops[i].update(deltaTime);
+    }
+};
+
+function renderDrops() {
+    ctx.clearRect(0, 0, stage.width, stage.height);
+    ctx.save();
+    for(let i = 0; i < drops.length; ++i) {
+        drops[i].render();
+    }
+    ctx.restore();
+};
+
+let lastTime = 0, elapsedTime = 0;
+const FIXED_STEP = 1 / FRAME_RATE;
+const SLOW_MULT = SLOW_MO_MULTIPLIER / 100;
+
+function update(timestamp) {
+    const currentTime = timestamp / 1000;
+    const deltaTime = Math.min(currentTime - lastTime, MAX_LAG);
+
+    const slowDeltaTime = (Date.now() - lastSlowTime) / 1000;
+    const speed = slowDeltaTime < SLOW_MO_DURATION + SLOW_MO_EASING
+        ? lerp(SLOW_MULT, 1, 1 - Math.min(slowDeltaTime / SLOW_MO_EASING, 1))
+        : lerp(SLOW_MULT, 1, Math.min((slowDeltaTime - SLOW_MO_DURATION - SLOW_MO_EASING) / SLOW_MO_EASING, 1));
+
+    let shouldRender = false;
+    lastTime = currentTime; 
+    elapsedTime += deltaTime;
+
+    while(elapsedTime >= FIXED_STEP) {
+        updateDrops(FIXED_STEP * TIME_SCALE / 100 * speed);
+        elapsedTime -= FIXED_STEP;
+        shouldRender = true;
+    }
+
+    if(shouldRender)
+        renderDrops();
     requestAnimationFrame(update);
+};
+
+initStage();
+initDrops();
+requestAnimationFrame(update);
+
 })();

@@ -5,14 +5,161 @@
 
 /* append your custom style below */
 
+// Sidebar effects
+
 #sidebar-canvas-wrapper {
     position: absolute;
     height: 100%;
     width: 100%;
     z-index: -1;
-    opacity: 0.25;
+    mix-blend-mode: exclusion;
 }
 
-#sidebar-canvas {
-    position: absolute;
+// Avatar effects
+
+$glitch_frames: 0.75;
+$glitch_filters: (
+    invert: (
+        units: '',
+        probability: 0.75,
+        range: (
+            min: 1,
+            max: 1
+        ),
+    ),
+    blur: (
+        units: 'px',
+        probability: 0.25,
+        range: (
+            min: 1,
+            max: 5
+        ),
+    ),
+    opacity: (
+        units: '',
+        probability: 0.1,
+        range: (
+            min: 0,
+            max: 0
+        ),
+    ),
+);
+
+@function rnd_min_max($min, $max, $unit: '') {
+    @return #{random() * ($max - $min) + $min}#{$unit};
+}
+
+@function rnd_range($range, $unit: '') {
+    @return #{random($range * 2) - ($range * 0.5)}#{$unit};
+}
+
+@function rnd_color() {
+    @return hsl(random(360), 100%, 50%);
+}
+
+@function should_glitch($i, $chance, $refresh) {
+    @return random() < $chance and $i % $refresh != 0;
+}
+
+@function glitch_value($i, $chance, $refresh, $value, $default: 0) {
+    @if(should_glitch($i, $chance, $refresh)) {
+        @return #{$value};
+    }
+    @return #{$default};
+}
+
+@mixin img_glitch($chance, $refresh, $duration, $shadow, $translate, $y_min, $scale_min, $scale_max, $skew) {
+    $name: unique-id();
+    @keyframes #{$name} {
+        @for $i from 0 through 100 {
+            @if(random() < $glitch_frames) {
+                #{$i}% {
+                    @if(should_glitch($i, $chance, $refresh)) {
+                        $filter_value: '';
+                        @each $filter, $filter_props in $glitch_filters {
+                            @if(random() < map-get($filter_props, probability)) {
+                                $range: map-get($filter_props, range);
+                                $min: map-get($range, min);
+                                $max: map-get($range, max);
+                                $filter_value: $filter_value + 
+                                ' #{$filter}(#{rnd_min_max($min, $max)}#{map-get($filter_props, units)})';
+                            }
+                        }
+                        filter: unquote($filter_value) drop-shadow(rnd_range($shadow, px) rnd_range($shadow, px) rnd_color());
+                    } @else if($i % $refresh != 0) {
+                        filter: none;
+                    }
+                    transform: 
+                        translate(glitch_value($i, $chance * 0.75, $refresh, rnd_range($translate, '%')),
+                                  glitch_value($i, $chance * 0.75, $refresh, rnd_range($translate, '%'), $y_min))
+                        scale(glitch_value($i, $chance * 0.5, $refresh, rnd_min_max($scale_min, $scale_max, '%'), #{$scale_min}#{'%'}))
+                        skew(glitch_value($i, $chance * 0.25, $refresh, rnd_range($skew, deg)));
+                }
+            }
+        }
+    }
+    animation: $name $duration infinite linear alternate;
+}              
+
+@mixin pseudo_glitch($pseudo, $chance, $refresh, $duration) {
+    $name: unique-id();
+    @keyframes #{$name} {
+        @for $i from 0 through 100 {
+            #{$i}% {
+                @if(should_glitch($i, $chance, $refresh)) {
+                    top: #{random(100)}#{'%'};
+                    left: #{rnd_range(50)}#{'%'};
+                    width: #{rnd_min_max(50, 100)}#{'%'};
+                    height: #{rnd_min_max(1, 5)}px;
+                    background-color: rnd_color();
+                } @else {
+                    background: none;
+                }
+            }
+        } 
+    }
+    &::#{$pseudo} { animation: $name $duration infinite linear alternate; }
+}
+
+@mixin pseudos_glitch($chance, $refresh, $duration) {
+    @include pseudo_glitch(before, $chance, $refresh, $duration);
+    @include pseudo_glitch(after, $chance, $refresh, $duration);
+}
+
+#avatar {
+    position: relative;
+    box-shadow: none !important;
+    background-color: white;
+    mix-blend-mode: exclusion;
+    transition: all 0.25s ease-out;
+    
+    &::before, &::after {
+        content: '';
+        background: none;
+        pointer-events: none;
+        mix-blend-mode: exclusion;
+        position: absolute;
+        z-index: 1;
+    }
+
+    @include pseudos_glitch($chance: 0.1, $refresh: 2, $duration: 5s);
+    img {
+        @include img_glitch($chance: 0.1, $refresh: 5, $duration: 2.5s,
+        $shadow: 5, $translate: 5, $y_min: 5%, $scale_min: 100, $scale_max: 105, $skew: 5);
+    }
+
+    &:hover {
+        overflow: visible !important;
+        filter: invert(1);
+        @include pseudos_glitch($chance: 0.75, $refresh: 5, $duration: 5s);
+        img {
+            @include img_glitch($chance: 0.5, $refresh: 10, $duration: 2.5s,
+            $shadow: 10, $translate: 10, $y_min: -5%, $scale_min: 150, $scale_max: 200, $skew: 45);
+        }
+    }
+}
+
+.flip {
+    rotate: 180deg;
+    transform: scaleX(-1) !important;
 }
