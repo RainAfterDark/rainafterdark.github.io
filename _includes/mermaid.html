@@ -1,5 +1,5 @@
 <!-- mermaid-js loader -->
-<script type="text/javascript">
+<script defer type="text/javascript">
   function updateMermaid(event) {
     if (event.source === window && event.data && event.data.direction === ModeToggle.ID) {
       const mode = event.data.message;
@@ -56,7 +56,8 @@
       backup.after(mermaid);
     });
 
-    mermaid.initialize(mermaidConf);
+    if (typeof mermaid !== 'undefined')
+      mermaid.initialize(mermaidConf);
     window.addEventListener('message', updateMermaid);
   })();
 </script>

@@ -5,17 +5,25 @@
 
 /* append your custom style below */
 
-// Sidebar effects
+// Sidebar
+
+#sidebar {
+    padding-top: 10vh;
+    top: -10vh;
+    padding-bottom: 10vh;
+    height: 120vh;
+}
 
 #sidebar-canvas-wrapper {
     position: absolute;
+    top: -10%;
     height: 100%;
     width: 100%;
     z-index: -1;
     mix-blend-mode: exclusion;
 }
 
-// Avatar effects
+// Avatar
 
 $glitch_frames: 0.75;
 $glitch_filters: (
@@ -162,7 +170,7 @@ $glitch_filters: (
         from { transform: rotate(180deg) scaleX(-1); }
         to { transform: rotate(0deg) scaleX(1); }
     }
-    animation: unflip_frames 0.25s forwards;
+    animation: unflip_frames 0.5s forwards;
 }
 
 .flip {
@@ -170,5 +178,51 @@ $glitch_filters: (
         from { transform: rotate(0deg) scaleX(1); }
         to { transform: rotate(180deg) scaleX(-1); }
     }
-    animation: flip_frames 0.25s forwards !important;
+    animation: flip_frames 0.5s forwards !important;
+}
+
+// Other
+
+.card.categories {
+    box-shadow: var(--card-shadow);
+}
+
+main {
+    @keyframes transition-in {
+        from { 
+            opacity: 0;
+            transform: translateY(5vh);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+    animation: transition-in 0.5s forwards ease-out;
+}
+
+.parallax-3d {
+    transition: transform 0.1s ease-out;
+}
+
+.post-tail-wrapper, #tail-wrapper {
+    pointer-events: none;
+    opacity: 0;
+    transition: all 0.5s ease-out;
+}
+
+.show-tail-wrapper {
+    pointer-events: all !important;
+    opacity: 1 !important;
+}
+
+:root {
+    -webkit-backface-visibility: hidden;
+    image-rendering: optimizeSpeed;             /*                     */
+    image-rendering: -moz-crisp-edges;          /* Firefox             */
+    image-rendering: -o-crisp-edges;            /* Opera               */
+    image-rendering: -webkit-optimize-contrast; /* Chrome (and Safari) */
+    image-rendering: optimize-contrast;         /* CSS3 Proposed       */
+    -ms-interpolation-mode: nearest-neighbor;   /* IE8+                */
+    -webkit-font-smoothing: subpixel-antialiased;
 }

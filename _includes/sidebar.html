@@ -1,13 +1,13 @@
 <!-- The Side Bar -->
 
-<aside aria-label="Sidebar" id="sidebar" class="d-flex flex-column align-items-end">
-  <div id="sidebar-canvas-wrapper" data-turbolinks-permanent>
+<aside aria-label="Sidebar" id="sidebar" class="d-flex flex-column align-items-end parallax-3d" data-turbolinks-permanent>
+  <div id="sidebar-canvas-wrapper">
     <canvas id="sidebar-canvas"></canvas>
   </div>
   <script defer data-turbolinks-eval="false" src="{{ '/assets/js/sidebar-effects.js' | relative_url }}"></script>
   
   <header class="profile-wrapper">
-    <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle" data-turbolinks-permanent>
+    <a href="{{ '/' | relative_url }}" id="avatar" class="rounded-circle">
       {%- if site.avatar != empty and site.avatar -%}
         {%- capture avatar_url -%}
           {% include media-url.html src=site.avatar %}

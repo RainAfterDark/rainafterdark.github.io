@@ -29,5 +29,5 @@
     "postcss",
     "scss"
   ],
-  "liquid.format.enable": false
+  "liquid.format.enable": false,
 }

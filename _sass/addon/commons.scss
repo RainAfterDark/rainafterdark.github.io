@@ -1272,7 +1272,7 @@ search {
 
   [#{$sidebar-display}] {
     #sidebar {
-      transform: translateX(0);
+      transform: translateX(0) !important;
     }
 
     #main-wrapper {
@@ -1287,8 +1287,8 @@ search {
   #sidebar {
     @include slide;
 
-    transform: translateX(-$sidebar-width); /* hide */
-    -webkit-transform: translateX(-$sidebar-width);
+    transform: translateX(-$sidebar-width) !important; /* hide */
+    -webkit-transform: translateX(-$sidebar-width) !important;
   }
 
   #main-wrapper {
