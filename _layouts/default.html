@@ -1,7 +1,6 @@
 ---
 layout: compress
 ---
-
 <!doctype html>
 
 {% include origin-type.html %}
@@ -59,6 +58,10 @@ layout: compress
         </div>
 
         {% include_cached search-results.html lang=lang %}
+      </div>
+
+      <div id="bg-canvas-wrapper">
+        <canvas id="bg-canvas"></canvas>
       </div>
 
       <aside aria-label="Scroll to Top">

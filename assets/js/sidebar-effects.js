@@ -1,6 +1,6 @@
 /* Modified version of: https://github.com/geoffb/canvas-rain-demo */
 
-(function () {
+(() => {
 
 const FRAME_RATE               = 60,    // fps
       MAX_LAG                  = 1,     // seconds
@@ -10,7 +10,7 @@ const FRAME_RATE               = 60,    // fps
       SLOW_MO_EASING           = 0.2,   // seconds
       CANVAS_DEBUG             = false, // bool
 
-      TYPE_SPEED               = 20,    // ms/char
+      TYPE_MIN_SPEED           = 50,    // ms/char
       TYPE_PAUSE_OFFSET        = 0,     // %
       TYPE_TURBO_THRESHOLD     = 60,    // %
       TYPE_SKIP_THRESHOLD      = 40,    // %
@@ -48,6 +48,11 @@ let stage, stageWrapper, ctx, avatar,
     deviceHasPointer = false,
     mouseXD = 0, lastMX = 0, lastMY = 0,
 
+    promises = [],
+    typers = [],
+    tocObserver,
+    progressBar,
+
     gravity = true,
     isFlipping = false,
     isScrolling = false,
@@ -57,8 +62,6 @@ let stage, stageWrapper, ctx, avatar,
     lastSlowTime = 0,
     
     drops = [],
-    promises = [],
-    typers = [],
     lastTime = 0,
     elapsedTime = 0;
 
@@ -94,14 +97,14 @@ function getNow() {
 function onVisible(element, threshold = 0) {
     let token = {};
     promises.push(token);
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const o = new IntersectionObserver(([entry]) => {
             token.break = () => {
-                reject(new Error("A promise meant to broken..."));
+                resolve(false);
                 o.disconnect();
             }
             if (entry.isIntersecting) {
-                resolve();
+                resolve(entry.intersectionRatio);
                 o.disconnect();
             }
         }, { threshold: threshold });
@@ -167,7 +170,7 @@ function parallaxTransform(target, invert = false, mult = 1) {
     target.style.webkitTransform = transform;
 }
 
-function parallax3d() {
+function updateParallax3d() {
     if (!deviceHasPointer) return;
     const targets = document.querySelectorAll(".parallax-3d");
     for (let i = 0; i < targets.length; i++) 
@@ -178,46 +181,143 @@ function parallax3d() {
 function showTailWrappers() {
     const wrappers = document.querySelectorAll(".post-tail-wrapper, #tail-wrapper");
     for (let i = 0; i < wrappers.length; i++) {
-        wrappers[i].classList.add("show-tail-wrapper");
+        wrappers[i].classList.add("show");
     }
 }
 
-class Typer {
+function onMJXReady() {
+    let token = {};
+    promises.push(token);
+    return new Promise((resolve) => {
+        token.break = () => resolve(false);
+        const mjxScript = document.getElementById("MathJax-script");
+        if (mjxScript) {
+            if (window.MathJax && MathJax.version) {
+                resolve("MJX already loaded");
+                return;
+            }
+            window.MathJax.startup = {
+                pageReady: () => 
+                    MathJax.startup.defaultPageReady()
+                    .then(() => resolve("MJX initialized"))
+            }
+            return;
+        }
+        resolve("No MJX");
+    });
+}
+
+function clickToc(e) {
+    let hash = e.target.hash;
+    let needFinish = true;
+    let finishTo = 0;
+    for (let i = 0; i < typers.length; i++) {
+        if (typers[i].headerHash === hash) {
+            needFinish = !typers[i].finished;
+            finishTo = i;
+            break;
+        }
+    }
+    if (needFinish) {
+        for (let i = 0; i <= finishTo; i++) {
+            typers[i].finish();
+        }
+        let correction = setInterval(() => {
+            if (getNow() - lastScrollTime > 100) {
+                typers[finishTo].original.scrollIntoView();
+                clearInterval(correction);
+            }
+        }, 100);
+    }
+}
+
+function onTocReady() {
+    let token = {};
+    promises.push(token);
+    return new Promise((resolve) => {
+        token.break = () => resolve(false);
+        if (document.querySelector("main h2, main h3")) {
+            let checkToc = setInterval(() => {
+                if (window.tocbot) {
+                    tocbot.refresh({ ...tocbot.options,
+                        onClick: clickToc,
+                    });
+                    document.getElementById("toc-wrapper").classList.remove("d-none");
+                    resolve("Tocbot!");
+                    clearInterval(checkToc);
+                }
+            }, 100);
+            return;
+        }
+        resolve("No Toc");
+    });
+}
+
+function updateProgressBar() {
+    if (!progressBar) {
+        progressBar = new Turbolinks.ProgressBar();
+        progressBar.setValue(0);
+    }
+    let finalProgress = 1;
+    if (typers.length > 0) {
+        let totalProgress = 0;
+        for (let i = 0; i < typers.length; i++)
+            totalProgress += typers[i].progress;
+        finalProgress = Math.min(totalProgress / typers.length, 1);
+        progressBar.show();
+    }
+    progressBar.setValue(finalProgress);
+    if (finalProgress === 1)
+        progressBar.hide();
+}
+
+class FakeTyper {
+    original;
     fakeDiv;
-    next;
+    wrapper;
+    nextFakeTyper;
+
     content = "";
+    headerHash = "";
+    initialized = false;
     finished = false;
-    isHeader = false;
-    isTooltip = false;
-    isMermaid = false;
+
     i = 0;
     lastLen = 0;
-    caret = false;
+    progress = 0;
 
     constructor (element) {
-        const fakeDiv = document.createElement("div");
-        fakeDiv.className = "fake-typer"
-        element.parentNode.insertBefore(fakeDiv, element);
-        fakeDiv.appendChild(element);
+        this.original = element; 
+        this.content = this.original.outerHTML;
+        if (this.original.tagName.startsWith("H")) {
+            let a = this.original.querySelector("a.anchor");
+            if (a) this.headerHash = a.hash;
+        }
+    }
 
-        const tag = element.tagName;
-        this.isHeader = tag.startsWith("H") && element.firstElementChild;
-        this.isMermaid = element.className === "mermaid";
-        this.isTooltip = element.getAttribute("data-bs-toggle") === "tooltip";
+    init() { // this whole thing is so we can preserve references to the og
+        if (this.initialized) return;
+        this.fakeDiv = document.createElement("div");
+        this.fakeDiv.className = "fake-typer"; // we do a little silly
+        this.original.parentNode.insertBefore(this.fakeDiv, this.original);
 
-        this.fakeDiv = fakeDiv;
-        this.content = this.fakeDiv.innerHTML;
-        this.fakeDiv.innerHTML = "";
+        this.wrapper = document.createElement("div");
+        this.wrapper.className = "temp-wrapper d-none";
+        this.original.parentNode.insertBefore(this.wrapper, this.original);
+        this.wrapper.appendChild(this.original); // wrap og element in an invisible wrapper
+        this.initialized = true;
     }
 
     type() {
+        if (this.finished || !this.initialized) return;
         const rect = document.querySelector("main article div.content").getBoundingClientRect();
         const threshold = rect.bottom + (window.innerHeight * (TYPE_PAUSE_OFFSET / 100));
         const pause = threshold >= window.innerHeight;
         const ratio =  threshold / window.innerHeight;
 
-        let speed = Math.round(TYPE_SPEED * ratio);
-        var char = () => this.content[this.i];
+        const turbo = TYPE_TURBO_THRESHOLD / 100;
+        let speed = Math.round(TYPE_MIN_SPEED * (Math.max(ratio, turbo) - turbo) / (1 - turbo));
+        let char = () => this.content[this.i];
         let writeImmediately = false;
         
         while (char() === "<") {
@@ -226,13 +326,8 @@ class Typer {
         }
 
         if (!pause) {
-            this.i++;
-            if (ratio < TYPE_TURBO_THRESHOLD / 100) {
-                speed = 0;
-                while (this.i + 1 < this.content.length && !/\w/.test(char()))
-                    this.i++; // type words instead of chars
-            }
-            this.fakeDiv.innerHTML = this.content.slice(0, this.i);
+            this.fakeDiv.innerHTML = this.content.slice(0, ++this.i);
+            this.progress = this.fakeDiv.innerHTML.length / this.content.length;
             writeImmediately = writeImmediately || this.fakeDiv.innerHTML.length <= this.lastLen;
             this.lastLen = this.fakeDiv.innerHTML.length;
         }
@@ -250,75 +345,67 @@ class Typer {
         setTimeout(this.type.bind(this), speed);
     }
 
-    start() {
-        if (this.finished) return;
-        this.caretInterval = setInterval(() => {
-            this.caret = !this.caret;
-        }, 500);
-        onVisible(this.fakeDiv).then(() => {
-            this.type();
-        }).catch(() => {});
+    async start() {
+        if (this.finished || !this.initialized) return;
+        if (await onVisible(this.fakeDiv)) this.type();
     }
 
     finish() {
+        if (this.finished || !this.initialized) return;
         this.finished = true;
-        clearInterval(this.caretInterval);
-        this.fakeDiv.innerHTML = this.content; // fix typing artifacts
-        
-        const shimmer = this.fakeDiv.querySelectorAll(".shimmer");
-        for (let i = 0; i < shimmer.length; i++)
-            shimmer[i].classList.remove("shimmer"); // from img lazy loading
-
-        const element = this.fakeDiv.firstElementChild;
-        this.fakeDiv.replaceWith(element); // unwrap
-        if (this.isTooltip) new bootstrap.Tooltip(element);
-
-        if (this.isHeader) {
-            let tocWrapper = document.getElementById("toc-wrapper");
-            if (tocWrapper.classList.contains("d-none")) {
-                tocbot.init({
-                    tocSelector: '#toc',
-                    contentSelector: '.content',
-                    ignoreSelector: '[data-toc-skip]',
-                    headingSelector: 'h2, h3, h4',
-                    orderedList: false,
-                    scrollSmooth: false
-                });
-                tocWrapper.classList.remove('d-none');
-            }
-            tocbot.refresh();
-        }
-
-        if (this.isMermaid) fixMermaids();
-        if (this.next) this.next.start();
+        this.progress = 1;
+        this.fakeDiv.remove(); // and viola!
+        this.wrapper.replaceWith(this.original); // magic!
+        if (this.original.className === "mermaid") fixMermaids();
+        if (this.nextFakeTyper) this.nextFakeTyper.start();
         else showTailWrappers();
     }
 }
 
-function typewrite() {
-    if (!window.location.pathname.startsWith("/posts/") || window.location.hash) {
+async function typewrite() {
+    const mjxState = await onMJXReady();
+    const tocState = await onTocReady();
+    document.querySelector("main").classList.add("show");
+
+    if (!window.location.pathname.startsWith("/posts/") || !mjxState || !tocState) {
         showTailWrappers();
         return;
     }
 
     const elements = document.querySelectorAll(
-        //"main article header > h1, " + 
-        //".post-desc, .post-meta > span, .post-meta > div > a, " +
-        //"figcaption, .post-meta > div > span, .post-meta > div > div > span, " +
+        "main article header > h1, " + 
+        ".post-desc, .post-meta > span, .post-meta > div > a, " +
+        "figcaption, .post-meta > div > span, .post-meta > div > div > span, " +
         "main article div.content > *");
 
+    let skipFrom = 0;
     for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
-        const typer = new Typer(element);
-        if (i > 0) typers[typers.length-1].next = typer;
+        const typer = new FakeTyper(element);
+        if (i > 0) typers[typers.length - 1].nextFakeTyper = typer;
         typers.push(typer);
+        if (typer.headerHash && typer.headerHash === window.location.hash) {
+            skipFrom = typers.length - 1;
+        }
     }
 
     if (typers.length > 0) {
-        if (window.tocbot)
-            tocbot.refresh();
-        typers[0].start();
+        for (let i = skipFrom; i < typers.length; i++) 
+            typers[i].init();
+        typers[skipFrom].start();
     }
+}
+
+function reloadReset() {
+    for (let i = 0; i < promises.length; i++) {
+        if (promises[i])
+            promises[i].break();
+    }
+    promises = [];
+    typers = [];
+
+    tocObserver.disconnect();
+    tocObserver.observe(document.querySelector(("#access-div")));
 }
 
 function initialize() {
@@ -353,14 +440,20 @@ function initialize() {
         lastScrollTop = st <= 0 ? 0 : st;
         if (!isScrolling) slowDown();
         lastScrollTime = getNow();
-     });
+    });
+
+    tocObserver = new IntersectionObserver(([entry]) => {
+        let tocWrapper = document.querySelector("#toc-wrapper");
+        if (tocWrapper) // position: sticky "fix" to prevent jitter
+            tocWrapper.classList[entry.isIntersecting ? "remove" : "add"]("fixed");
+    });
+
+    for (let i = 0; i < DROP_COUNT; i++) {
+        drops.push(new Drop());
+    }
 
     document.addEventListener("turbolinks:load", () => {
-        for (let i = 0; i < promises.length; i++) {
-            promises[i].break();
-        }
-        promises = [];
-        typers = [];
+        reloadReset();
         fixNav();
         fixMermaids();
         fixModeToggle();
@@ -369,9 +462,8 @@ function initialize() {
         initialized = true;
     });
 
-    for (let i = 0; i < DROP_COUNT; i++) {
-        drops.push(new Drop());
-    }
+    requestAnimationFrame(update);
+    requestAnimationFrame(unknownPleasures);
 }
 
 class Drop {
@@ -526,7 +618,8 @@ function updateDrops(now, fixedStep) {
 };
 
 function renderDrops() {
-    ctx.clearRect(0, 0, stage.width, stage.height);
+    stage.width = stageWrapper.clientWidth;
+    stage.height = stageWrapper.clientHeight;
     ctx.save();
     for (let i = 0; i < drops.length; ++i)
         drops[i].render();
@@ -557,6 +650,113 @@ function renderDrops() {
     ctx.restore();
 };
 
+// https://maxhalford.github.io/blog/unknown-pleasures/
+function unknownPleasures() {
+    const canvas = document.querySelector("#bg-canvas");
+    const wrapper = document.querySelector("#bg-canvas-wrapper");
+    canvas.width = wrapper.clientWidth;
+    canvas.height = wrapper.clientHeight;
+    const ctx = canvas.getContext("2d");
+
+    // Determine x and y range
+    const xMin = 0;
+    const xMax = canvas.width;
+    const yMin = canvas.height * 0.33;
+    const yMax = canvas.height;
+
+    // Determine the number of lines and the number of points per line
+    const nLines = 80;
+    const nPoints = 80;
+
+    const mx = (xMin + xMax) / 2;
+    const dx = (xMax - xMin) / nPoints;
+    const dy = (yMax - yMin) / nLines;
+
+    let x = xMin;
+    let y = yMin;
+
+    function rand (min, max) {
+        return Math.random() * (max - min) + min;
+    }
+
+    function randInt (min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    function randNormal (mu, sigma) {
+        let sum = 0;
+        for (let i = 0; i < 6; i += 1) {
+            sum += rand(-1, 1);
+        }
+        return mu + sigma * sum / 6;
+    }
+
+    function normalPDF (x, mu, sigma) {
+        const sigma2 = Math.pow(sigma, 2);
+        const numerator = Math.exp(-Math.pow((x - mu), 2) / (2 * sigma2));
+        const denominator = Math.sqrt(2 * Math.PI * sigma2);
+        return numerator / denominator;
+    }
+
+    ctx.fillStyle = "black";
+    ctx.strokeStyle = "white";
+
+    const lim = Math.round(lerp(5, 15, mouseXD));
+    for (let i = 1; i <= lim; i++) {
+        ctx.beginPath();
+        const rad = 2 * Math.PI;
+        ctx.arc(xMax / 2, yMin, 100 + (Math.random() * lim) + (i * i), rad * Math.random(), rad * Math.random());
+        ctx.lineWidth = 1 - (i / lim);
+        ctx.stroke();
+    }
+
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(xMax / 2, yMin, 100, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillRect(xMin, yMin, xMax, yMax);
+    ctx.moveTo(xMin, yMin);
+    ctx.lineWidth = 1.2;
+
+    for (let i = 0; i < nLines; i++) {
+        const lr = 1 - (i / nLines)
+        ctx.globalAlpha = lr;
+        ctx.beginPath();
+        // Generate random parameters for the line's normal distribution
+        const nModes = Math.round(randInt(1, 4) * (1 + mouseXD));
+        let mus = [];
+        let sigmas = [];
+        for (let j = 0; j < nModes; j++) {
+            const off = 50 * (1 + mouseXD / 2) * (1 - (i / nLines));
+            mus[j] = rand(mx - off, mx + off);
+            sigmas[j] = randNormal(24, 30 * (1 + mouseXD / 2));
+        }
+        let w = y
+        for (let k = 0; k < nPoints; k++) {
+            x = x + dx;
+            let noise = 0;
+            for (let l = 0; l < nModes; l++) {
+                noise += normalPDF(x, mus[l], sigmas[l]);
+            }
+            const yy = 0.3 * w + 0.7 * (y - 600 * noise + noise * Math.random() * (200 * (1 + mouseXD)) + Math.random());
+            ctx.lineTo(x, yy);
+            w = yy;
+        }
+        // Cover the previous lines
+        ctx.fill();
+        // Draw the current line
+        ctx.stroke();
+        // Go to the next line
+        x = xMin;
+        y = y + dy;
+        ctx.moveTo(x, y);
+    }
+
+    setTimeout(() => requestAnimationFrame(unknownPleasures), lerp(1000 / 24, 1000 / 12, 1 - mouseXD));
+}
+
 function update() {
     const fixedStep = 1 / FRAME_RATE;
     const now = getNow();
@@ -566,22 +766,19 @@ function update() {
     let shouldRender = false;
     lastTime = nowMS; 
     elapsedTime += deltaTime;
-    stage.width = stageWrapper.clientWidth;
-    stage.height = stageWrapper.clientHeight;
 
     while (elapsedTime >= fixedStep) {
         updateDrops(now, fixedStep);
         elapsedTime -= fixedStep;
         shouldRender = true;
     }
-
     
+    updateParallax3d();
+    updateProgressBar();
     if (shouldRender) renderDrops();
-    parallax3d();
     requestAnimationFrame(update);
 };
 
 initialize();
-requestAnimationFrame(update);
 
 })();

@@ -1,6 +1,7 @@
 ---
 ---
 
+@use 'sass:list';
 @import 'main';
 
 /* append your custom style below */
@@ -12,6 +13,7 @@
     top: -10vh;
     padding-bottom: 10vh;
     height: 120vh;
+    box-shadow: var(--card-shadow);
 }
 
 #sidebar-canvas-wrapper {
@@ -188,17 +190,10 @@ $glitch_filters: (
 }
 
 main {
-    @keyframes transition-in {
-        from { 
-            opacity: 0;
-            transform: translateY(5vh);
-        }
-        to { 
-            opacity: 1;
-            transform: translateY(0);
-        }
+    opacity: 0;
+    &.show {
+        animation: fade-up 0.5s forwards ease-out;
     }
-    animation: transition-in 0.5s forwards ease-out;
 }
 
 .parallax-3d {
@@ -206,14 +201,56 @@ main {
 }
 
 .post-tail-wrapper, #tail-wrapper {
-    pointer-events: none;
     opacity: 0;
+    pointer-events: none !important;
     transition: all 0.5s ease-out;
+
+    &.show {
+        opacity: 1;
+        pointer-events: all !important;
+    }
 }
 
-.show-tail-wrapper {
-    pointer-events: all !important;
-    opacity: 1 !important;
+#toc-wrapper {
+    &.fixed {
+        position: fixed;
+    }
+}
+
+.turbolinks-progress-bar {
+    //height: 5px;
+    @keyframes gradient_loop {
+        from { background-position: left }
+        to { background-position: right }
+    }
+
+    $colors: ();
+    @mixin gen_rainbow($from, $through) {
+        @for $i from $from through $through {
+            $colors: append($colors, hsl(calc(360 / 12) * $i, 100%, 50%), comma);
+        }
+    }
+    @include gen_rainbow(1, 12);
+    @include gen_rainbow(11, 1);
+
+    background: linear-gradient(90deg, $colors);
+    background-size: 800% 100%;
+    animation: gradient_loop 5s linear infinite;
+}
+
+#bg-canvas-wrapper {
+    position: fixed;
+    width: 20%;
+    min-width: 300px;
+    height: 100%;
+    bottom: 0;
+    right: 0;
+    mix-blend-mode: exclusion;
+    opacity: 0.1;
+    mask: linear-gradient(90deg, 
+        rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 25%,
+        rgba(0, 0, 0, 1) 75%, rgba(0, 0, 0, 0) 100%);
+    z-index: -99;
 }
 
 :root {
