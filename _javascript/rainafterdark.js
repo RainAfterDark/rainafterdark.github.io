@@ -1,5 +1,4 @@
-/* Modified version of: https://github.com/geoffb/canvas-rain-demo */
-
+// TODO: Modularize this mess
 (() => {
 
 const FRAME_RATE               = 60,    // fps
@@ -99,15 +98,21 @@ function onVisible(element, threshold = 0) {
     promises.push(token);
     return new Promise((resolve) => {
         const o = new IntersectionObserver(([entry]) => {
-            token.break = () => {
-                resolve(false);
-                o.disconnect();
-            }
             if (entry.isIntersecting) {
                 resolve(entry.intersectionRatio);
                 o.disconnect();
             }
         }, { threshold: threshold });
+
+        token.break = () => {
+            resolve(false);
+            o.disconnect();
+        }
+
+        if (element.getBoundingClientRect().bottom <= 0) {
+            resolve(-1);
+            return;
+        }
         o.observe(element);
     });
 }
@@ -347,7 +352,12 @@ class FakeTyper {
 
     async start() {
         if (this.finished || !this.initialized) return;
-        if (await onVisible(this.fakeDiv)) this.type();
+        const visibility = await onVisible(this.fakeDiv);
+        if (visibility === -1) {
+            this.finish(); // finish if above viewport
+            return;
+        }
+        this.type();
     }
 
     finish() {
@@ -434,7 +444,7 @@ function initialize() {
     window.addEventListener("scroll", () => {
         let st = window.scrollY  || document.documentElement.scrollTop;
         if (st > lastScrollTop)
-           flipGravity(true);
+            flipGravity(true);
         else if (st < lastScrollTop)
             flipGravity(false);
         lastScrollTop = st <= 0 ? 0 : st;
@@ -466,6 +476,7 @@ function initialize() {
     requestAnimationFrame(unknownPleasures);
 }
 
+/* Modified version of: https://github.com/geoffb/canvas-rain-demo */
 class Drop {
     splash = new Splash();
 
@@ -650,7 +661,7 @@ function renderDrops() {
     ctx.restore();
 };
 
-// https://maxhalford.github.io/blog/unknown-pleasures/
+// Modified version of https://maxhalford.github.io/blog/unknown-pleasures/
 function unknownPleasures() {
     const canvas = document.querySelector("#bg-canvas");
     const wrapper = document.querySelector("#bg-canvas-wrapper");
@@ -712,7 +723,7 @@ function unknownPleasures() {
 
     ctx.lineWidth = 3;
     ctx.beginPath();
-    ctx.arc(xMax / 2, yMin, 100, 0, 2 * Math.PI);
+    ctx.arc(xMax / 2, yMin, 100 + (5 * Math.random() * (1 + mouseXD)), 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
 

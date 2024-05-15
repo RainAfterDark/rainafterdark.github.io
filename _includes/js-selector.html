@@ -107,3 +107,10 @@
     {% endif %}
   {% endfor %}
 {% endif %}
+
+<!-- Effects and Turbolinks Fixes -->
+<script
+  defer
+  data-turbolinks-eval="false"
+  src="{{ 'rainafterdark.min.js' | prepend: js_dist | relative_url }}"
+></script>
