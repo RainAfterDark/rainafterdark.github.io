@@ -1,6 +1,7 @@
 // TODO: Modularize this mess
 (() => {
 
+//#region CONFIG
 const FRAME_RATE               = 60,    // fps
       MAX_LAG                  = 1,     // seconds
       TIME_SCALE               = 100,   // %
@@ -28,8 +29,8 @@ const FRAME_RATE               = 60,    // fps
       DROP_COLOR_LIGHTNESS     = 75,    // %
       DROP_MIN_VELOCITY        = 500,   // px/s
       DROP_MAX_VELOCITY        = 750,   // px/s
-      DROP_MIN_LENGTH          = 5,     // px
-      DROP_MAX_LENGTH          = 30,    // px
+      DROP_MIN_LENGTH          = 24,    // px
+      DROP_MAX_LENGTH          = 69,    // px
       DROP_LENGTH_MULTIPLIER   = 150,   // %
       DROP_MIN_ALPHA           = 5,     // %
       DROP_MAX_ALPHA           = 25,    // %
@@ -41,8 +42,12 @@ const FRAME_RATE               = 60,    // fps
       SPLASH_MAX_RADIUS        = 16,    // px
       SPLASH_MIN_DURATION      = 0.8,   // seconds
       SPLASH_MAX_DURATION      = 1.6;   // seconds
+//#endregion
 
-let stage, stageWrapper, ctx, avatar,
+//#region VARIABLES
+let sidebarCanvas, sidebarWrapper, sidebarCtx,
+    bgCanvas, bgWrapper, bgCtx, 
+    avatar,
     initialized = false,
     deviceHasPointer = false,
     mouseXD = 0, lastMX = 0, lastMY = 0,
@@ -55,6 +60,7 @@ let stage, stageWrapper, ctx, avatar,
     gravity = true,
     isFlipping = false,
     isScrolling = false,
+    isDown = () => isFlipping !== gravity,
     lastScrollTop = 0,
     lastScrollTime = 0,
     lastFlipTime = 0,
@@ -63,13 +69,19 @@ let stage, stageWrapper, ctx, avatar,
     drops = [],
     lastTime = 0,
     elapsedTime = 0;
+//#endregion
 
+//#region HELPERS
 function randomInteger (min, max) {
     return Math.round((Math.random() * (max - min)) + min);
 }
 
 function lerp (a, b, n) { // Linear Interpolation
     return a + ((b - a) * n);
+}
+
+function clamp(n, min, max) {
+    return Math.max(Math.min(n, max), min);
 }
 
 function scaleVector (v, s) {
@@ -85,7 +97,7 @@ function normalizeVector (v) {
 function randomColor() {
     let h = Math.round(lerp(0, 360, Math.random()));
     let l = Math.random() < DROP_COLOR_CHANCE / 100 ? DROP_COLOR_LIGHTNESS : 100;
-    let hsl = `hsl(${h}, 100%, ${l}%, 1)`;
+    let hsl = `hsl(${h}, 100%, ${l}%)`;
     return hsl;
 }
 
@@ -116,7 +128,9 @@ function onVisible(element, threshold = 0) {
         o.observe(element);
     });
 }
+//#endregion
 
+//#region INIT
 function fixMermaids() { // hack to update the mermaids
     modeToggle.notify(); 
 }
@@ -135,10 +149,23 @@ function fixNav() { // because we made the sidebar turbo-permanent we need to do
 
 function fixModeToggle() { // nuke the evenListeners because they keep stacking on load
     if (!initialized) return;
-    let modeToggle = document.querySelector("#mode-toggle");
+    let modeToggle = document.getElementById("mode-toggle");
     modeToggle.replaceWith(modeToggle.cloneNode(true));
 }
 
+function reloadReset() {
+    for (let i = 0; i < promises.length; i++) {
+        if (promises[i])
+            promises[i].break();
+    }
+    promises = [];
+    typers = [];
+    tocObserver.disconnect();
+    tocObserver.observe(document.querySelector(("#access-div")));
+}
+//#endregion
+
+//#region MISC
 function slowDown() {
     let now = getNow();
     if ((now - lastSlowTime) / 1000 > SLOW_MO_EASING + SLOW_MO_DURATION)
@@ -180,10 +207,12 @@ function updateParallax3d() {
     const targets = document.querySelectorAll(".parallax-3d");
     for (let i = 0; i < targets.length; i++) 
         parallaxTransform(targets[i]);
-    parallaxTransform(stageWrapper, true, 2 / 3);
+    parallaxTransform(sidebarWrapper, true, 2 / 3);
 }
+//#endregion
 
-function showTailWrappers() {
+//#region TYPEWRITER
+function finalizePage() {
     const wrappers = document.querySelectorAll(".post-tail-wrapper, #tail-wrapper");
     for (let i = 0; i < wrappers.length; i++) {
         wrappers[i].classList.add("show");
@@ -280,7 +309,7 @@ class FakeTyper {
     original;
     fakeDiv;
     wrapper;
-    nextFakeTyper;
+    nextTyper;
 
     content = "";
     headerHash = "";
@@ -367,8 +396,8 @@ class FakeTyper {
         this.fakeDiv.remove(); // and viola!
         this.wrapper.replaceWith(this.original); // magic!
         if (this.original.className === "mermaid") fixMermaids();
-        if (this.nextFakeTyper) this.nextFakeTyper.start();
-        else showTailWrappers();
+        if (this.nextTyper) this.nextTyper.start();
+        else finalizePage();
     }
 }
 
@@ -377,8 +406,10 @@ async function typewrite() {
     const tocState = await onTocReady();
     document.querySelector("main").classList.add("show");
 
-    if (!window.location.pathname.startsWith("/posts/") || !mjxState || !tocState) {
-        showTailWrappers();
+    const path = window.location.pathname;
+    const typedPage = path.startsWith("/posts/") || path === "/about/";
+    if (!typedPage || !mjxState || !tocState) {
+        finalizePage();
         return;
     }
 
@@ -392,7 +423,7 @@ async function typewrite() {
     for (let i = 0; i < elements.length; i++) {
         const element = elements[i];
         const typer = new FakeTyper(element);
-        if (i > 0) typers[typers.length - 1].nextFakeTyper = typer;
+        if (i > 0) typers[typers.length - 1].nextTyper = typer;
         typers.push(typer);
         if (typer.headerHash && typer.headerHash === window.location.hash) {
             skipFrom = typers.length - 1;
@@ -405,84 +436,16 @@ async function typewrite() {
         typers[skipFrom].start();
     }
 }
+//#endregion
 
-function reloadReset() {
-    for (let i = 0; i < promises.length; i++) {
-        if (promises[i])
-            promises[i].break();
-    }
-    promises = [];
-    typers = [];
-
-    tocObserver.disconnect();
-    tocObserver.observe(document.querySelector(("#access-div")));
-}
-
-function initialize() {
-    stage = document.getElementById("sidebar-canvas");
-    stageWrapper = document.getElementById("sidebar-canvas-wrapper");
-    stage.width = stageWrapper.clientWidth;
-    stage.height = stageWrapper.clientHeight;
-    ctx = stage.getContext("2d");
-    ctx.globalCompositeOperation = "lighter";
-    avatar = document.getElementById("avatar");
-    deviceHasPointer = window.matchMedia("(pointer: fine)").matches;
-
-    const isHover = e => e.parentElement.querySelector(":hover") === e;
-    document.addEventListener("mousemove", function checkHover(e) {
-        const hovered = isHover(avatar);
-        if (hovered !== checkHover.hovered) {
-            checkHover.hovered = hovered;
-            if (hovered && !gravity)
-                flipGravity(true);
-        }
-        mouseXD = e.clientX / window.innerWidth;
-        lastMX = e.clientX;
-        lastMY = e.clientY;
-    });
-
-    window.addEventListener("scroll", () => {
-        let st = window.scrollY  || document.documentElement.scrollTop;
-        if (st > lastScrollTop)
-            flipGravity(true);
-        else if (st < lastScrollTop)
-            flipGravity(false);
-        lastScrollTop = st <= 0 ? 0 : st;
-        if (!isScrolling) slowDown();
-        lastScrollTime = getNow();
-    });
-
-    tocObserver = new IntersectionObserver(([entry]) => {
-        let tocWrapper = document.querySelector("#toc-wrapper");
-        if (tocWrapper) // position: sticky "fix" to prevent jitter
-            tocWrapper.classList[entry.isIntersecting ? "remove" : "add"]("fixed");
-    });
-
-    for (let i = 0; i < DROP_COUNT; i++) {
-        drops.push(new Drop());
-    }
-
-    document.addEventListener("turbolinks:load", () => {
-        reloadReset();
-        fixNav();
-        fixMermaids();
-        fixModeToggle();
-        flipGravity(!gravity);
-        typewrite();
-        initialized = true;
-    });
-
-    requestAnimationFrame(update);
-    requestAnimationFrame(unknownPleasures);
-}
-
+//#region CANVAS
 /* Modified version of: https://github.com/geoffb/canvas-rain-demo */
 class Drop {
     splash = new Splash();
 
     constructor() {
         this.init();
-        this.y = randomInteger(0, stage.height);
+        this.y = randomInteger(0, sidebarCanvas.height);
     }
 
     init() {
@@ -496,8 +459,8 @@ class Drop {
         this.spawned = Math.random() <= lerp(DROP_MIN_SPAWNRATE / 100, 1, mouseXD);
 
         let buffer = DROP_X_BUFFER * lerp(1, WIND_BUFFER_MULTIPLIER / 100, mouseXD);
-        this.x = isFlipping !== gravity ? randomInteger(-buffer, stage.width) : randomInteger( 0, stage.width + buffer);
-        this.y = isFlipping !== gravity ? -this.len * 2 : (stage.height * this.breakpoint);
+        this.x = isDown() ? randomInteger(-buffer, sidebarCanvas.width) : randomInteger( 0, sidebarCanvas.width + buffer);
+        this.y = isDown() ? -this.len * 2 : (sidebarCanvas.height * this.breakpoint);
 
         this.vx = WIND_MIN_VELOCITY;
         this.wv = lerp(-WIND_VELOCITY_VARIANCE, WIND_VELOCITY_VARIANCE, Math.random());
@@ -505,20 +468,19 @@ class Drop {
     }
 
     update(deltaTime) {
-        let vm = lerp(1, WIND_VELOCITY_MULTIPLIER / 100, mouseXD);
+        const vm = lerp(1, WIND_VELOCITY_MULTIPLIER / 100, mouseXD);
         this.vx = lerp(WIND_MIN_VELOCITY, WIND_MAX_VELOCITY, mouseXD) + this.wv;
-        let down /* and hanging around */ = isFlipping !== gravity;
 
         if (!this.splash.active) {
-            let dir = down ? 1 : -1;
+            const dir = isDown() ? 1 : -1;
             this.x += this.vx * deltaTime * vm * dir;
             this.y += this.vy * deltaTime * vm * dir;
         }
 
-        if (down && this.y > stage.height * this.breakpoint) {
+        if (isDown() && this.y > sidebarCanvas.height * this.breakpoint) {
             this.startSplash();
             this.init();
-        } else if (!down  && this.y + this.len < 0) {
+        } else if (!isDown() && this.y + this.len < 0) {
             this.init();
             this.startSplash();
         }
@@ -527,39 +489,42 @@ class Drop {
 
     render() {
         this.splash.render();
-        if (!this.spawned || this.splash.active)
-            return;
+        if (!this.spawned || this.splash.active) return;
+
+        let len = this.len * lerp(1, DROP_LENGTH_MULTIPLIER / 100, mouseXD);
+        const flipRatio = Math.min((getNow() - lastFlipTime) / 1000 / (SLOW_MO_EASING * 2), 1);
+        len *= 1 - (Math.sin(flipRatio * Math.PI));
 
         let v = { x: this.vx, y: this.vy };
         normalizeVector(v);
-        let len = this.len * lerp(1, DROP_LENGTH_MULTIPLIER / 100, mouseXD);
-        len = Math.min((stage.height * this.breakpoint) - this.y, len);
-        scaleVector(v, Math.max(len, 0));
+        let x = this.x + (isDown() ? v.x * len : 0);
+        let y = this.y + (isDown() ? v.y * len : 0);
 
-        let x2 = this.x + v.x;
-        let y2 = this.y + v.y;
+        sidebarCtx.strokeStyle = this.color;
+        sidebarCtx.fillStyle = this.color;
+        sidebarCtx.globalAlpha = this.alpha;
 
-        ctx.strokeStyle = this.color;
-        ctx.lineWidth = this.width;
-        ctx.globalAlpha = this.alpha;
-
-        ctx.beginPath();
-        ctx.moveTo(this.x, this.y);
-        ctx.lineTo(x2, y2);
-        ctx.stroke();
-        ctx.closePath();
-        
-        if (CANVAS_DEBUG) {
-            ctx.beginPath();
-            ctx.ellipse(this.x, this.y, 2, 2, 0, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.closePath();
+        const skipSteps = clamp((sidebarCanvas.height * this.breakpoint) - this.y, -len, len);
+        for (let i = 0; i <= len; i++) {
+            sidebarCtx.lineWidth = lerp(0, this.width, 1 - (i / len));
+            sidebarCtx.beginPath();
+            sidebarCtx.moveTo(x, y);
+            x += isDown() ? -v.x : v.x;
+            y += isDown() ? -v.y : v.y;
+            if ((isDown() ? len - i : i) > skipSteps) continue;
+            sidebarCtx.lineTo(x, y);
+            sidebarCtx.stroke();
+            if (i === 0) {
+                sidebarCtx.beginPath();
+                sidebarCtx.arc(x, y, this.width / 2, 0, Math.PI * 2);
+                sidebarCtx.fill();
+            }
         }
     }
 
     startSplash() {
         if (this.spawned)
-            this.splash.start(this.x, this.y, this.color, this.scale);
+            this.splash.start(this.x, this.y, this.color, this.scale);   
     }
 }
 
@@ -567,6 +532,7 @@ class Splash {
     active = false;
     
     start(x, y, color, scale) {
+        if (this.active) return;
         this.x = x;
         this.y = y;
         this.color = color;
@@ -578,36 +544,34 @@ class Splash {
         this.maxRadius = lerp(SPLASH_MIN_RADIUS, SPLASH_MAX_RADIUS, scale) * m;
         this.maxTime = lerp(SPLASH_MIN_DURATION, SPLASH_MAX_DURATION, 1 - scale) / m;
 
-        this.t = isFlipping !== gravity ? 0 : this.maxTime;
+        this.t = isDown() ? 0 : this.maxTime;
         this.active = true;
     }
 
     update(deltaTime) {
-        if (!this.active)
-            return;
-        let down = isFlipping !== gravity;
-        let dir = down ? 1 : -1;
+        if (!this.active) return;
+        let dir = isDown() ? 1 : -1;
         this.t += deltaTime * dir;
-        if ((down && this.t >= this.maxTime) || (!down && this.t <= 0))
+        if ((isDown() && this.t >= this.maxTime) || (!isDown() && this.t <= 0))
             this.active = false;
     }
 
     render() {
         if (!this.active ||
-            this.y > stage.height * SPLASH_MAX_BREAKPOINT / 100)
+            this.y > sidebarCanvas.height * SPLASH_MAX_BREAKPOINT / 100)
             return;
 
         let scale = this.t / this.maxTime;
         let radius = this.maxRadius * scale;
 
-        ctx.strokeStyle = this.color;
-        ctx.globalAlpha = this.alpha;
-        ctx.lineWidth = this.width - (this.width * scale);
+        sidebarCtx.strokeStyle = this.color;
+        sidebarCtx.globalAlpha = this.alpha;
+        sidebarCtx.lineWidth = this.width - (this.width * scale);
 
-        ctx.beginPath();
-        ctx.ellipse(this.x, this.y, radius * 4, radius, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.closePath();
+        sidebarCtx.beginPath();
+        sidebarCtx.ellipse(this.x, this.y, radius * 4, radius, 0, 0, Math.PI * 2);
+        sidebarCtx.stroke();
+        sidebarCtx.closePath();
     }
 }
 
@@ -629,55 +593,52 @@ function updateDrops(now, fixedStep) {
 };
 
 function renderDrops() {
-    stage.width = stageWrapper.clientWidth;
-    stage.height = stageWrapper.clientHeight;
-    ctx.save();
+    sidebarCanvas.width = sidebarWrapper.clientWidth;
+    sidebarCanvas.height = sidebarWrapper.clientHeight;
+    sidebarCtx.save();
     for (let i = 0; i < drops.length; ++i)
         drops[i].render();
 
     if (CANVAS_DEBUG) {
-        ctx.strokeStyle = "rgb(255, 255, 255)";
-        ctx.lineWidth = 1;
-        ctx.globalAlpha = 1;
+        sidebarCtx.strokeStyle = "rgb(255, 255, 255)";
+        sidebarCtx.lineWidth = 1;
+        sidebarCtx.globalAlpha = 1;
 
-        ctx.beginPath();
-        ctx.moveTo(0, stage.height * (SPLASH_MIN_BREAKPOINT / 100));
-        ctx.lineTo(stage.width, stage.height * (SPLASH_MIN_BREAKPOINT / 100));
-        ctx.stroke();
-        ctx.closePath();
+        sidebarCtx.beginPath();
+        sidebarCtx.moveTo(0, sidebarCanvas.height * (SPLASH_MIN_BREAKPOINT / 100));
+        sidebarCtx.lineTo(sidebarCanvas.width, sidebarCanvas.height * (SPLASH_MIN_BREAKPOINT / 100));
+        sidebarCtx.stroke();
+        sidebarCtx.closePath();
 
-        ctx.beginPath();
-        ctx.moveTo(0, stage.height * (SPLASH_MAX_BREAKPOINT / 100));
-        ctx.lineTo(stage.width, stage.height * (SPLASH_MAX_BREAKPOINT / 100));
-        ctx.stroke();
-        ctx.closePath();
+        sidebarCtx.beginPath();
+        sidebarCtx.moveTo(0, sidebarCanvas.height * (SPLASH_MAX_BREAKPOINT / 100));
+        sidebarCtx.lineTo(sidebarCanvas.width, sidebarCanvas.height * (SPLASH_MAX_BREAKPOINT / 100));
+        sidebarCtx.stroke();
+        sidebarCtx.closePath();
 
-        ctx.beginPath();
-        ctx.moveTo(stage.width / 2, 0);
-        ctx.lineTo(stage.width / 2, stage.height);
-        ctx.stroke();
-        ctx.closePath();
+        sidebarCtx.beginPath();
+        sidebarCtx.moveTo(sidebarCanvas.width / 2, 0);
+        sidebarCtx.lineTo(sidebarCanvas.width / 2, sidebarCanvas.height);
+        sidebarCtx.stroke();
+        sidebarCtx.closePath();
     }
-    ctx.restore();
+    sidebarCtx.restore();
 };
 
 // Modified version of https://maxhalford.github.io/blog/unknown-pleasures/
 function unknownPleasures() {
-    const canvas = document.querySelector("#bg-canvas");
-    const wrapper = document.querySelector("#bg-canvas-wrapper");
-    canvas.width = wrapper.clientWidth;
-    canvas.height = wrapper.clientHeight;
-    const ctx = canvas.getContext("2d");
+    bgCtx.clearRect(0, 0, bgCanvas.width, bgCanvas.height);
+    bgCtx.save();
 
     // Determine x and y range
     const xMin = 0;
-    const xMax = canvas.width;
-    const yMin = canvas.height * 0.33;
-    const yMax = canvas.height;
+    const xMax = bgCanvas.width;
+    const yMin = bgCanvas.height / 3;
+    const yMax = bgCanvas.height;
 
     // Determine the number of lines and the number of points per line
-    const nLines = 80;
-    const nPoints = 80;
+    const nLines = 69;
+    const nPoints = 42;
 
     const mx = (xMin + xMax) / 2;
     const dx = (xMax - xMin) / nPoints;
@@ -709,40 +670,42 @@ function unknownPleasures() {
         return numerator / denominator;
     }
 
-    ctx.fillStyle = "black";
-    ctx.strokeStyle = "white";
+    bgCtx.fillStyle = "black";
+    bgCtx.strokeStyle = "white";
 
-    const lim = Math.round(lerp(5, 15, mouseXD));
+    const lim = Math.round(lerp(10, 24, mouseXD));
     for (let i = 1; i <= lim; i++) {
-        ctx.beginPath();
+        bgCtx.beginPath();
         const rad = 2 * Math.PI;
-        ctx.arc(xMax / 2, yMin, 100 + (Math.random() * lim) + (i * i), rad * Math.random(), rad * Math.random());
-        ctx.lineWidth = 1 - (i / lim);
-        ctx.stroke();
+        bgCtx.arc(xMax / 2, yMin, 100 + (Math.random() * lim) + (i * (i / 4)), rad * Math.random(), rad * Math.random());
+        bgCtx.lineWidth = 1 - (i / lim);
+        bgCtx.stroke();
     }
 
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(xMax / 2, yMin, 100 + (5 * Math.random() * (1 + mouseXD)), 0, 2 * Math.PI);
-    ctx.fill();
-    ctx.stroke();
+    bgCtx.lineWidth = 3;
+    bgCtx.beginPath();
+    bgCtx.arc(xMax / 2, yMin, 100 + (5 * Math.random() * (1 + mouseXD)), 0, 2 * Math.PI);
+    bgCtx.fillStyle = "rgba(0, 0, 0, 0.25)";
+    bgCtx.fill();
+    bgCtx.stroke();
 
-    ctx.fillRect(xMin, yMin, xMax, yMax);
-    ctx.moveTo(xMin, yMin);
-    ctx.lineWidth = 1.2;
+    bgCtx.fillStyle = "black";
+    bgCtx.fillRect(xMin, yMin, xMax, yMax);
+    bgCtx.moveTo(xMin, yMin);
 
     for (let i = 0; i < nLines; i++) {
-        const lr = 1 - (i / nLines)
-        ctx.globalAlpha = lr;
-        ctx.beginPath();
+        const lr = 1 - (i / nLines);
+        const mr = (1 + mouseXD / 2);
+        bgCtx.lineWidth = 1.5 * lr * lr;
+        bgCtx.beginPath();
         // Generate random parameters for the line's normal distribution
-        const nModes = Math.round(randInt(1, 4) * (1 + mouseXD));
+        const nModes = Math.round(randInt(6, 9));
         let mus = [];
         let sigmas = [];
         for (let j = 0; j < nModes; j++) {
-            const off = 50 * (1 + mouseXD / 2) * (1 - (i / nLines));
+            const off = 69 * mr;
             mus[j] = rand(mx - off, mx + off);
-            sigmas[j] = randNormal(24, 30 * (1 + mouseXD / 2));
+            sigmas[j] = randNormal(42, 69 * mr);
         }
         let w = y
         for (let k = 0; k < nPoints; k++) {
@@ -751,21 +714,22 @@ function unknownPleasures() {
             for (let l = 0; l < nModes; l++) {
                 noise += normalPDF(x, mus[l], sigmas[l]);
             }
-            const yy = 0.3 * w + 0.7 * (y - 600 * noise + noise * Math.random() * (200 * (1 + mouseXD)) + Math.random());
-            ctx.lineTo(x, yy);
+            const yy = 0.3 * w + 0.7 * (y - 800 * lr * noise + noise * Math.random() * 200 * mr + Math.random());
+            bgCtx.lineTo(x, Math.max(yy, y - (yMin / 3)));
             w = yy;
         }
         // Cover the previous lines
-        ctx.fill();
+        bgCtx.fill();
         // Draw the current line
-        ctx.stroke();
+        bgCtx.stroke();
         // Go to the next line
         x = xMin;
         y = y + dy;
-        ctx.moveTo(x, y);
+        bgCtx.moveTo(x, y);
     }
 
-    setTimeout(() => requestAnimationFrame(unknownPleasures), lerp(1000 / 24, 1000 / 12, 1 - mouseXD));
+    bgCtx.restore();
+    setTimeout(() => requestAnimationFrame(unknownPleasures), 1000 / 12);
 }
 
 function update() {
@@ -789,6 +753,71 @@ function update() {
     if (shouldRender) renderDrops();
     requestAnimationFrame(update);
 };
+//#endregion
+
+function initialize() {
+    sidebarCanvas = document.getElementById("sidebar-canvas");
+    sidebarWrapper = document.getElementById("sidebar-canvas-wrapper");
+    sidebarCanvas.width = sidebarWrapper.clientWidth;
+    sidebarCanvas.height = sidebarWrapper.clientHeight;
+    sidebarCtx = sidebarCanvas.getContext("2d");
+
+    bgCanvas = document.getElementById("bg-canvas");
+    bgWrapper = document.getElementById("bg-canvas-wrapper");
+    bgCanvas.width = bgWrapper.clientWidth;
+    bgCanvas.height = bgWrapper.clientHeight;
+    bgCtx = bgCanvas.getContext("2d");
+
+    tocObserver = new IntersectionObserver(([entry]) => {
+        const tocWrapper = document.getElementById("toc-wrapper");
+        if (tocWrapper) // position: sticky "fix" to prevent jitter
+            tocWrapper.classList[entry.isIntersecting ? "remove" : "add"]("fixed");
+    });
+
+    for (let i = 0; i < DROP_COUNT; i++) {
+        drops.push(new Drop());
+    }
+
+    avatar = document.getElementById("avatar");
+    deviceHasPointer = window.matchMedia("(pointer: fine)").matches;
+    const isHover = e => e.parentElement.querySelector(":hover") === e;
+
+    document.addEventListener("mousemove", function checkHover(e) {
+        const hovered = isHover(avatar);
+        if (hovered !== checkHover.hovered) {
+            checkHover.hovered = hovered;
+            if (hovered && !gravity)
+                flipGravity(true);
+        }
+        mouseXD = e.clientX / window.innerWidth;
+        lastMX = e.clientX;
+        lastMY = e.clientY;
+    });
+
+    window.addEventListener("scroll", () => {
+        const st = window.scrollY  || document.documentElement.scrollTop;
+        if (st > lastScrollTop)
+            flipGravity(true);
+        else if (st < lastScrollTop)
+            flipGravity(false);
+        lastScrollTop = st <= 0 ? 0 : st;
+        if (!isScrolling) slowDown();
+        lastScrollTime = getNow();
+    });
+
+    document.addEventListener("turbolinks:load", () => {
+        reloadReset();
+        fixNav();
+        fixMermaids();
+        fixModeToggle();
+        flipGravity(!gravity);
+        typewrite();
+        initialized = true;
+    });
+
+    requestAnimationFrame(update);
+    requestAnimationFrame(unknownPleasures);
+}
 
 initialize();
 

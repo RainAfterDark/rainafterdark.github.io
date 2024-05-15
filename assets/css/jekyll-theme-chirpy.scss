@@ -13,7 +13,7 @@
     top: -10vh;
     padding-bottom: 10vh;
     height: 120vh;
-    box-shadow: var(--card-shadow);
+    box-shadow: var(--bs-box-shadow);
 }
 
 #sidebar-canvas-wrapper {
@@ -185,8 +185,8 @@ $glitch_filters: (
 
 // Other
 
-.card.categories {
-    box-shadow: var(--card-shadow);
+a.post-preview, .card.categories {
+    box-shadow: var(--bs-box-shadow);
 }
 
 main {
@@ -217,31 +217,46 @@ main {
     }
 }
 
-.turbolinks-progress-bar {
+@function gen_rainbow($from, $through) {
+    $colors: ();
+    @for $i from $from through $through {
+        $colors: append($colors, hsl(calc(360 / max($from, $through)) * $i, 100%, 50%), comma);
+    }
+    @return $colors;
+}
+    
+
+@mixin rainbow_loop($size, $duration) {
     @keyframes gradient_loop {
         from { background-position: left }
         to { background-position: right }
     }
 
-    $colors: ();
-    @mixin gen_rainbow($from, $through) {
-        @for $i from $from through $through {
-            $colors: append($colors, hsl(calc(360 / 12) * $i, 100%, 50%), comma);
-        }
-    }
-    @include gen_rainbow(1, 12);
-    @include gen_rainbow(11, 1);
+    $colors: gen_rainbow(1, 12);
+    $colors: append($colors, gen_rainbow(11, 1));
 
     background: linear-gradient(90deg, $colors);
-    background-size: 800% 100%;
-    animation: gradient_loop 5s linear infinite;
+    background-size: $size 100%;
+    background-repeat: repeat-x;
+    animation: gradient_loop $duration linear infinite;
+}
+
+.turbolinks-progress-bar {
+    @include rainbow_loop(800%, 5s);
+}
+
+.rainbow-text {
+    @include rainbow_loop(400%, 1s);
+    background-clip: text;
+    text-fill-color: transparent;
 }
 
 #bg-canvas-wrapper {
     position: fixed;
-    width: 20%;
-    min-width: 300px;
+
+    width: auto;
     height: 100%;
+    aspect-ratio: 3 / 7;
     bottom: 0;
     right: 0;
     mix-blend-mode: exclusion;
@@ -250,6 +265,11 @@ main {
         rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 25%,
         rgba(0, 0, 0, 1) 75%, rgba(0, 0, 0, 0) 100%);
     z-index: -99;
+}
+
+#bg-canvas {
+    bottom: 0;
+    right: 0;
 }
 
 :root {

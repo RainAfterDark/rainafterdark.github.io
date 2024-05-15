@@ -206,14 +206,20 @@ compress_html:
     envs: [development]
 
 exclude:
+  - .sass-cache/
+  - .jekyll-cache/
+  - Gemfile
+  - Gemfile.lock
+  - node_modules/
   - "*.gem"
   - "*.gemspec"
-  - docs
-  - tools
+  - docs/
+  - tools/
   - README.md
   - LICENSE
   - rollup.config.js
   - package*.json
+  - _javascript/
 
 jekyll-archives:
   enabled: [categories, tags]
