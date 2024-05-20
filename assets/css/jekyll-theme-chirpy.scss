@@ -9,10 +9,12 @@
 // Sidebar
 
 #sidebar {
-    padding-top: 10vh;
-    top: -10vh;
-    padding-bottom: 10vh;
-    height: 120vh;
+    padding-top: 10dvh;
+    top: -10dvh;
+    padding-bottom: 10dvh;
+    height: 120dvh;
+    left: -10px;
+    padding-left: 10px;
     box-shadow: var(--bs-box-shadow);
 }
 
@@ -167,20 +169,6 @@ $glitch_filters: (
             $shadow: 10, $translate: 10, $y_min: -5%, $scale_min: 150, $scale_max: 200, $skew: 45);
         }
     }
-
-    @keyframes unflip_frames {
-        from { transform: rotate(180deg) scaleX(-1); }
-        to { transform: rotate(0deg) scaleX(1); }
-    }
-    animation: unflip_frames 0.5s forwards;
-}
-
-.flip {
-    @keyframes flip_frames {
-        from { transform: rotate(0deg) scaleX(1); }
-        to { transform: rotate(180deg) scaleX(-1); }
-    }
-    animation: flip_frames 0.5s forwards !important;
 }
 
 // Other
@@ -197,7 +185,7 @@ main {
 }
 
 .parallax-3d {
-    transition: transform 0.1s ease-out;
+    transition: transform 0.15s ease-out;
 }
 
 .post-tail-wrapper, #tail-wrapper {
@@ -253,9 +241,8 @@ main {
 
 #bg-canvas-wrapper {
     position: fixed;
-
     width: auto;
-    height: 100%;
+    height: 100lvh;
     aspect-ratio: 3 / 7;
     bottom: 0;
     right: 0;
@@ -265,11 +252,11 @@ main {
         rgba(0, 0, 0, 0) 0%, rgba(0, 0, 0, 1) 25%,
         rgba(0, 0, 0, 1) 75%, rgba(0, 0, 0, 0) 100%);
     z-index: -99;
+    display: inline;
 }
 
-#bg-canvas {
-    bottom: 0;
-    right: 0;
+a.post-tag {
+    backdrop-filter: blur(1px);
 }
 
 :root {

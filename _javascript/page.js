@@ -1,3 +1,4 @@
+import { showPage } from './modules/effects';
 import { basic, initSidebar, initTopbar } from './modules/layouts';
 import { loadImg, imgPopup, initClipboard } from './modules/plugins';
 
@@ -7,3 +8,4 @@ initSidebar();
 initTopbar();
 initClipboard();
 basic();
+showPage();

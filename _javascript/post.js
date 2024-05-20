@@ -1,3 +1,4 @@
+import { typewrite } from './modules/effects';
 import { basic, initSidebar, initTopbar } from './modules/layouts';
 import {
   loadImg,
@@ -8,10 +9,10 @@ import {
 } from './modules/plugins';
 
 loadImg();
-toc();
 imgPopup();
 initSidebar();
 initLocaleDatetime();
 initClipboard();
 initTopbar();
 basic();
+typewrite();

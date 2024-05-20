@@ -7,7 +7,7 @@ const SRC_DEFAULT = '_javascript';
 const DIST_DEFAULT = 'assets/js/dist';
 const isProd = process.env.NODE_ENV === 'production';
 
-function build(filename) {
+function build(filename, includeLicense = true) {
   return {
     input: [`${SRC_DEFAULT}/${filename}.js`],
     output: {
@@ -25,7 +25,7 @@ function build(filename) {
         presets: ['@babel/env'],
         plugins: ['@babel/plugin-transform-class-properties']
       }),
-      license({
+      includeLicense && license({
         banner: {
           commentStyle: 'ignored',
           content: { file: path.join(__dirname, SRC_DEFAULT, '_copyright') }
@@ -36,6 +36,8 @@ function build(filename) {
   };
 }
 
+const worker = (filename) => build(`workers/${filename}`, false);
+
 export default [
   build('commons'),
   build('home'),
@@ -43,5 +45,7 @@ export default [
   build('page'),
   build('post'),
   build('misc'),
-  build('rainafterdark')
+  worker('rain-worker'),
+  worker('bg-worker'),
+  build('persist', false)
 ];
