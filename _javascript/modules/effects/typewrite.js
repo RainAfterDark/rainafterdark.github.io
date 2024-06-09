@@ -55,7 +55,7 @@ function clickToc(e) {
         for (let i = 0; i <= finishTo; i++) {
             typers[i].finish();
         }
-        const scrollTo = typers[finishTo].original;
+        /*const scrollTo = typers[finishTo].original;
         const correction = setInterval(() => {
             const rect = scrollTo.getBoundingClientRect();
             if (rect.top <= 1) {
@@ -63,7 +63,7 @@ function clickToc(e) {
                 return;
             }
             scrollTo.scrollIntoView();
-        }, 1000);
+        }, 1000);*/
     }
 }
 
